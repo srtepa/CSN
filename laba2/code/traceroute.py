@@ -5,6 +5,10 @@ import os
 import argparse
 import sys
 
+ICMP_ECHO_REPLY = 0
+ICMP_ECHO_REQUEST = 8
+ICMP_TIME_EXCEEDED = 11
+
 def calculate_checksum(data):
     if len(data) % 2 == 1:
         data += b'\0'#добавляем нулевой байт
@@ -22,13 +26,13 @@ def calculate_checksum(data):
 
 
 def create_icmp_echo_request(packet_id, seq_number):
-    header = struct.pack('!bbHHh', 8, 0, 0, packet_id, seq_number)
+    header = struct.pack('!bbHHh', ICMP_ECHO_REQUEST, 0, 0, packet_id, seq_number)
 
     data = struct.pack('d', time.time()) + b'MyTracerouteTest'
 
     my_checksum = calculate_checksum(header + data)
 
-    header = struct.pack('!bbHHh', 8, 0, socket.htons(my_checksum), packet_id, seq_number)#пересобираем заголовок с правильной контрольной суммой
+    header = struct.pack('!bbHHh', ICMP_ECHO_REQUEST, 0, socket.htons(my_checksum), packet_id, seq_number)#пересобираем заголовок с правильной контрольной суммой
 
     return header + data
 
@@ -64,7 +68,7 @@ def traceroute(target_host, resolve_dns=False, max_hops=30, timeout=2.0):
             try:
                 sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_ICMP)
             except PermissionError:
-                print("Ошибка: Для использования сырых сокетов требуются права root. Запустите через sudo.")
+                print("Ошибка: Для использования сырых сокетов требуются права root. Запустите через sudo")
                 sys.exit(1)
 
             sock.setsockopt(socket.IPPROTO_IP, socket.IP_TTL, ttl)
@@ -99,13 +103,16 @@ def traceroute(target_host, resolve_dns=False, max_hops=30, timeout=2.0):
         rtt_str = "  ".join(f"{r:>8}" for r in rtts)
         if hop_address:
             display_name = get_hostname(hop_address, resolve_dns)
-            print(f"{ttl:>3}  {rtt_str}  {display_name}")
-        else:
-            print(f"{ttl:>3}  {rtt_str}  Превышен интервал ожидания для запроса.")
 
-        #дошли до узла
-        if icmp_type == 0 and hop_address == dest_ip:
-            print("\nТрассировка завершена.")
+            if icmp_type == ICMP_TIME_EXCEEDED or icmp_type == ICMP_ECHO_REPLY:
+                print(f"{ttl:>3}  {rtt_str}  {display_name}")
+            else:
+                print(f"{ttl:>3}  {rtt_str}  {display_name}  [ICMP Type: {icmp_type}]")
+        else:
+            print(f"{ttl:>3}  {rtt_str}  Превышен интервал ожидания для запроса")
+
+        if icmp_type == ICMP_ECHO_REPLY and hop_address == dest_ip:
+            print("\nТрассировка завершена")
             break
 
 
