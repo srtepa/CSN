@@ -168,7 +168,13 @@ class P2PChat:
         threading.Thread(target=self.listen_udp, daemon=True).start()
 
         time.sleep(0.5)
-        self.broadcast_udp()
+
+        def broadcast_loop():
+            while True:
+                self.broadcast_udp()
+                time.sleep(5)
+
+        threading.Thread(target=broadcast_loop, daemon=True).start()
 
         while True:
             try:
@@ -189,7 +195,7 @@ class P2PChat:
             except KeyboardInterrupt:
                 break
 
-        print("Завершение работы чата")
+        print("Завершение работы...")
 
 
 if __name__ == "__main__":
