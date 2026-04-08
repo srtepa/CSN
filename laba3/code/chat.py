@@ -47,34 +47,43 @@ class P2PChat:
 
     def broadcast_udp(self):
         udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        udp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         msg = f"{self.ip}:{self.name}".encode('utf-8')
-
-        for i in range(1, 11):
-            target_ip = f"127.0.0.{i}"
-            if target_ip != self.ip:
-                try:
-                    udp_sock.sendto(msg, (target_ip, UDP_PORT))
-                except Exception:
-                    pass
-        udp_sock.close()
+        try:
+            udp_sock.sendto(msg, ('<broadcast>', UDP_PORT))
+        except Exception as e:
+            self.add_history(f"Ошибка широковещательной рассылки: {e}")
+        finally:
+            udp_sock.close()
 
     def listen_udp(self):
         udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         udp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
-        udp_sock.bind((self.ip, UDP_PORT))
+        udp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        udp_sock.bind(('', UDP_PORT))
 
         while True:
-            data, addr = udp_sock.recvfrom(BUFFER_SIZE)
-            msg_str = data.decode('utf-8')
+            try:
+                data, addr = udp_sock.recvfrom(BUFFER_SIZE)
+                msg_str = data.decode('utf-8')
 
-            if ":" in msg_str:
-                peer_ip, peer_name = msg_str.split(":", 1)
+                if ":" in msg_str:
+                    peer_ip, peer_name = msg_str.split(":", 1)
 
-                with self.lock:
-                    is_known = peer_ip in self.peers
+                    if peer_ip == self.ip:
+                        continue
 
-                if peer_ip != self.ip and not is_known:
-                    self.connect_to_peer(peer_ip, peer_name)
+                    with self.lock:
+                        is_known = peer_ip in self.peers
+
+                    if not is_known:
+                        my_ip_tuple = tuple(map(int, self.ip.split('.')))
+                        peer_ip_tuple = tuple(map(int, peer_ip.split('.')))
+
+                        if my_ip_tuple > peer_ip_tuple:
+                            self.connect_to_peer(peer_ip, peer_name)
+            except Exception as e:
+                self.add_history(f"Ошибка UDP слушателя: {e}")
 
     def start_tcp_server(self):
         server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -89,6 +98,7 @@ class P2PChat:
     def connect_to_peer(self, peer_ip, peer_name):
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.bind((self.ip, 0))
             sock.connect((peer_ip, TCP_PORT))
 
             with self.lock:
@@ -130,7 +140,10 @@ class P2PChat:
                         peer_name = payload
 
                     with self.lock:
+                        if peer_ip in self.peers and self.peers[peer_ip]["socket"] != sock:
+                             self.peers[peer_ip]["socket"].close() # Закрываем старый
                         self.peers[peer_ip] = {"socket": sock, "name": peer_name}
+
 
                     self.add_history(f"К нам подключился: {peer_name} ({peer_ip})")
 
