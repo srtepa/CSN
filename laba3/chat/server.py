@@ -1,4 +1,5 @@
 import socket
+import sys
 import threading
 
 clients = []
@@ -40,11 +41,14 @@ def handle_client(client):
         broadcast(f"{name} покинул чат")
         client.close()
 
+
 def start_server():
     host = input("Введите IP: ")
     port = int(input("Введите порт: "))
 
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
     try:
         server.bind((host, port))
@@ -53,16 +57,39 @@ def start_server():
         return
 
     server.listen()
+
+    server.settimeout(1.0)
+
     print(f"Сервер запущен на {host}:{port}")
+    print("Для выключения сервера нажмите Ctrl+C")
 
-    while True:
-        client, addr = server.accept()
-        print(f"Подключение: {addr}")
+    try:
+        while True:
+            try:
+                client, addr = server.accept()
+                print(f"Подключение: {addr}")
+                clients.append(client)
+                thread = threading.Thread(target=handle_client, args=(client,), daemon=True)
+                thread.start()
+            except socket.timeout:
+                pass
 
-        clients.append(client)
+    except KeyboardInterrupt:
+        print("\n! Остановка сервера")
 
-        thread = threading.Thread(target=handle_client, args=(client,))
-        thread.start()
+    finally:
+        print("Отключаем клиентов")
+        for client in clients:
+            try:
+                client.send("Сервер завершил работу".encode())
+                client.close()
+            except:
+                pass
+
+        server.close()
+        print("Сервер успешно выключен")
+        sys.exit(0)
+
 
 if __name__ == "__main__":
     start_server()

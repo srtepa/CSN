@@ -50,7 +50,7 @@ class P2PChat:
         udp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         msg = f"{self.ip}:{self.name}".encode('utf-8')
         try:
-            udp_sock.sendto(msg, ('<broadcast>', UDP_PORT))
+            udp_sock.sendto(msg, ('127.255.255.255', UDP_PORT))
         except Exception as e:
             self.add_history(f"Ошибка широковещательной рассылки: {e}")
         finally:
