@@ -23,7 +23,7 @@ class P2PChat:
         self.peers = {}
         self.history = []
         self.lock = threading.Lock()
-        self.history_synced = False#флаг, чтобы не качать историю дважды
+        self.history_synced = False
 
         self.add_history(f"Узел запущен. IP: {self.ip}, Имя: {self.name}")
 
@@ -93,7 +93,7 @@ class P2PChat:
 
         while True:
             client_sock, addr = server.accept()
-            threading.Thread(target=self.handle_tcp_client, args=(client_sock, addr[0]), daemon=True).start()
+            threading.Thread(target=self.handle_tcp_client, args=(client_sock, addr[0], None), daemon=True).start()
 
     def connect_to_peer(self, peer_ip, peer_name):
         try:
@@ -107,13 +107,19 @@ class P2PChat:
             self.send_to_peer(sock, MSG_NAME, f"{self.ip}:{self.name}")
             self.add_history(f"Установлено соединение с: {peer_name} ({peer_ip})")
 
-            threading.Thread(target=self.handle_tcp_client, args=(sock, peer_ip), daemon=True).start()
+            with self.lock:
+                if not self.history_synced:
+                    self.send_to_peer(sock, MSG_REQ_HISTORY)
+                    self.history_synced = True
+
+            threading.Thread(target=self.handle_tcp_client, args=(sock, peer_ip, peer_name), daemon=True).start()
         except Exception as e:
             self.add_history(f"Не удалось подключиться к {peer_ip}: {e}")
 
-    def handle_tcp_client(self, sock, temp_peer_ip):
+    def handle_tcp_client(self, sock, temp_peer_ip, initial_peer_name=None):
         peer_ip = temp_peer_ip
-        peer_name = "Unknown"
+        peer_name = initial_peer_name if initial_peer_name else "Unknown"
+        
         try:
             while True:
                 header = sock.recv(5)
@@ -141,16 +147,10 @@ class P2PChat:
 
                     with self.lock:
                         if peer_ip in self.peers and self.peers[peer_ip]["socket"] != sock:
-                             self.peers[peer_ip]["socket"].close() # Закрываем старый
+                             self.peers[peer_ip]["socket"].close()
                         self.peers[peer_ip] = {"socket": sock, "name": peer_name}
 
-
                     self.add_history(f"К нам подключился: {peer_name} ({peer_ip})")
-
-                    #запрос истории (только 1 раз)
-                    if not self.history_synced and len(self.history) <= 2:
-                        self.history_synced = True
-                        self.send_to_peer(sock, MSG_REQ_HISTORY)
 
                 elif msg_type == MSG_TEXT:
                     self.add_history(f"[{peer_name}]: {payload}")
@@ -161,11 +161,15 @@ class P2PChat:
                     self.send_to_peer(sock, MSG_HISTORY_DATA, hist_data)
 
                 elif msg_type == MSG_HISTORY_DATA:
-                    received_history = json.loads(payload)
-                    self.add_history("Получена история чата:")
-                    for item in received_history:
-                        print(f" * {item}")
-                    self.add_history("\n")
+                    with self.lock:
+                        if len(self.history) <= 2:
+                            received_history = json.loads(payload)
+                            print("Получена история чата: ---")
+                            self.history = received_history
+                            for item in self.history:
+                                print(item)
+                            print("***")
+                    self.history_synced = True
 
         except ConnectionResetError:
             pass
