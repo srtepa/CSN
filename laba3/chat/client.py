@@ -30,11 +30,12 @@ def start_client():
     port = int(input("Порт сервера: "))
 
     my_ip = input("Введите ваш исходящий IP (например, 127.0.0.2): ")
+    my_port = int(input("Введите ваш порт: "))
     name = input("Ваше имя: ")
 
     client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-    client.bind((my_ip, 0))
+    client.bind((my_ip, my_port))
 
     client.connect((host, port))
     client.send(name.encode())
