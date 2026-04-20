@@ -4,7 +4,7 @@ import select
 from urllib.parse import urlparse
 import os
 
-HOST = '0.0.0.0'
+HOST = '127.0.0.5'
 PORT = 8888
 BUFFER_SIZE = 8192
 BLACKLIST_FILE = 'blacklist.txt'
