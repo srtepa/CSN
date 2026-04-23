@@ -4,7 +4,7 @@ import select
 from urllib.parse import urlparse
 import os
 
-HOST = '127.0.0.5'
+HOST = '127.0.0.1'
 PORT = 8888
 BUFFER_SIZE = 8192
 BLACKLIST_FILE = 'blacklist.txt'
@@ -105,15 +105,21 @@ def handle_client(client_socket, client_address, blacklist):
                     if first_chunk:
                         try:
                             resp_first_line = data.split(b'\r\n')[0].decode('utf-8', errors='ignore')
-                            status_code = resp_first_line.split(' ')[1]
-                            print(f"[LOG] {full_url} - {status_code}")
-                        except IndexError:
-                            print(f"[LOG] {full_url} - Unknown Status")
+                            parts = resp_first_line.split(' ', 2)
+
+                            if len(parts) >= 3:
+                                status_info = f"{parts[1]} {parts[2]}"
+                            elif len(parts) == 2:
+                                status_info = parts[1]
+                            else:
+                                status_info = "Unknown Status"
+
+                            print(f"[LOG] {full_url} - {status_info}")
+                        except Exception:
+                            print(f"[LOG] {full_url} - Error parsing status")
                         first_chunk = False
 
                     client_socket.sendall(data)
-                elif sock is client_socket:
-                    server_socket.sendall(data)
 
             if not sockets or server_socket not in sockets or client_socket not in sockets:
                 break
