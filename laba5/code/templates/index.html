@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Файловое хранилище - {{ path }}</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        h1 { color: #333; }
+        ul { list-style-type: none; padding: 0; }
+        li { margin: 10px 0; }
+        a { text-decoration: none; color: #007bff; }
+        a:hover { text-decoration: underline; }
+        form { margin: 20px 0; padding: 10px; border: 1px solid #ccc; }
+        input, button { margin: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Файловое хранилище - {{ path }}</h1>
+    <h2>Файлы:</h2>
+    <ul>
+        {% for file in files %}
+        <li>
+            <a href="/{{ file.name }}">{{ file.name }}</a> ({{ file.size }} байт, изменён: {{ file.modified }})
+            <form action="/{{ file.name }}" method="post" style="display:inline;">
+                <input type="hidden" name="method" value="DELETE">
+                <button type="submit">Удалить</button>
+            </form>
+        </li>
+        {% endfor %}
+    </ul>
+
+    <h2>Загрузить файл:</h2>
+    <form action="/{{ path }}" method="post" enctype="multipart/form-data">
+        <input type="hidden" name="method" value="PUT">
+        <input type="file" name="file" required>
+        <button type="submit">Загрузить</button>
+    </form>
+
+    <h2>Копировать файл:</h2>
+    <form action="/{{ path }}copy_target" method="post">
+        <input type="hidden" name="method" value="PUT">
+        <input type="text" name="copy_from" placeholder="Путь к исходному файлу" required>
+        <input type="text" name="copy_to" placeholder="Новое имя файла" required>
+        <button type="submit">Копировать</button>
+    </form>
+
+    <h2>Создать директорию:</h2>
+    <form action="/{{ path }}new_dir" method="post">
+        <input type="hidden" name="method" value="PUT">
+        <input type="text" name="dir_name" placeholder="Имя директории" required>
+        <button type="submit">Создать</button>
+    </form>
+</body>
+</html>
