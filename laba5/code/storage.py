@@ -3,7 +3,6 @@ import logging
 import os
 import shutil
 from datetime import datetime
-from http import HTTPStatus
 from werkzeug.exceptions import HTTPException
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
@@ -99,6 +98,7 @@ def handle_path(file_path):
         return response
 
     if request.method == 'PUT':
+        is_update = os.path.exists(full_path)
         if 'X-Copy-From' in request.headers:
             source_path = request.headers.get('X-Copy-From', '')
             source_full = get_full_path(source_path)
@@ -106,11 +106,16 @@ def handle_path(file_path):
                 abort(404, 'Source file not found')
             os.makedirs(os.path.dirname(full_path), exist_ok=True)
             shutil.copy2(source_full, full_path)
-            return jsonify({'path': file_path, 'status': 'copied'}), 201
+            if is_update:
+                return '', 204 #204, если обновили
+            return jsonify({'path': file_path, 'status': 'copied'}), 201 #201, если создали новый
 
         os.makedirs(os.path.dirname(full_path), exist_ok=True)
         with open(full_path, 'wb') as f:
             f.write(request.get_data())
+
+        if is_update:
+            return '', 204
         return jsonify({'path': file_path, 'status': 'created'}), 201
 
     if request.method == 'DELETE':
